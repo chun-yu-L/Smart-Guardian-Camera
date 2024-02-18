@@ -3,37 +3,52 @@ import cv2
 from ultralytics import YOLO
 
 
-# load model weight
-model = YOLO('yolov8n.pt')
+def human_bbox_prediction(image):
+    """
+    Predicts bounding boxes for humans in the given image using YOLO model.
 
-video_path = '/app/example/Oxford Town Centre/10sec.mp4'
-cap = cv2.VideoCapture(video_path)
+    Parameters:
+    - image: The input image to be processed.
 
-idx = 0
-while cap.isOpened():
-    # Read a frame from the video
-    success, frame = cap.read()
+    Returns:
+    - conf: Numpy array of confidence values for the inference results.
+    - bbox: Numpy array of the predicted bounding box coordinates in the format (xmin, ymin, xmax, ymax).
+    """
+    model = YOLO('yolov8n.pt')
+    results = model(image, classes=[0])
+    bbox = results[0].boxes.xyxy.numpy()
+    conf = results[0].boxes.conf.numpy()
 
-    if success:
-        # Run YOLOv8 inference on the frame
-        results = model(frame, classes=[0])
+    return conf, bbox
+    
 
-        # Plot results image
-        annotated_frame = results[0].plot()
-        im_rgb = Image.fromarray(annotated_frame[..., ::-1])
+def draw_inference_result(image, conf, bbox):
+    """
+    Draws inference results on the input image.
+    
+    Parameters:
+    - image: the input image in cv2 format
+    - conf: confidence values for the inference results
+    - bbox: bounding boxes for the inference results
+    
+    Returns:
+    - im_rgb: the image with the inference results drawn in PIL image format
+    """
+    fontface = cv2.FONT_HERSHEY_SIMPLEX
+    for i, box in enumerate(bbox):
+        x1, y1, x2, y2 = [int(coord) for coord in box]
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-        # Save results to disk
-        # 直接 result[0].save 也可以只是看起來同畫質檔案比較大
-        im_rgb.save(f'/app/example/results/results_{idx}.jpg')
+        label = f'person: {conf[i]:.2f}'
+        t_size = cv2.getTextSize(label, fontface, 0.4, 2)[0]
+        c2 = x1 + t_size[0], y1 - t_size[1] - 12
+        cv2.rectangle(image, (x1, y1), c2, (0, 255, 0), -1)
 
-        idx += 1
+        cv2.putText(image, label, (x1, y1 - 8), fontface, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
 
-    else:
-        # Break the loop if the end of the video is reached
-        break
+    im_rgb = Image.fromarray(image[..., ::-1])
 
-# Release the video capture object
-cap.release()
+    return im_rgb
 
 
 
