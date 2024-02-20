@@ -13,7 +13,7 @@ def draw_inference_result(image, conf, bbox):
     - bbox: bounding boxes for the inference results
     
     Returns:
-    - im_rgb: the image with the inference results drawn in PIL image format
+    - im_rgb: the image with the inference results drawn in BGR format (openCV)
     """
     fontface = cv2.FONT_HERSHEY_SIMPLEX
     for i, box in enumerate(bbox):
@@ -27,9 +27,7 @@ def draw_inference_result(image, conf, bbox):
 
         cv2.putText(image, label, (x1, y1 - 8), fontface, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
 
-    im_rgb = Image.fromarray(image[..., ::-1])
-
-    return im_rgb
+    return image
 
 
 def draw_alarm_region(image):
@@ -42,9 +40,6 @@ def draw_alarm_region(image):
     Returns:
     - The input image with the alarm region drawn on it.
     """
-
-    image = np.asarray(image)
-
     # 5邊形座標點
     points = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
 
@@ -55,10 +50,7 @@ def draw_alarm_region(image):
     # 把 mask 疊到圖片上
     alpha = 1
     beta = 0.5
-    gamma = 0
+    gamma = 0 # 曝光度
     mask_img = cv2.addWeighted(image, alpha, zero_mask, beta, gamma)
-
-    # 轉回 RGB
-    mask_img_rgb = Image.fromarray(mask_img[..., ::-1])
 
     return mask_img
