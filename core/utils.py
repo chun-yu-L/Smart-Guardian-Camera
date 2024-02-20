@@ -7,7 +7,7 @@ def draw_inference_result(image, conf, bbox):
     """
     Draws inference results on the input image.
     
-    Parameters:
+    Args:
     - image: the input image in cv2 format
     - conf: confidence values for the inference results
     - bbox: bounding boxes for the inference results
@@ -34,7 +34,7 @@ def draw_alarm_region(image):
     """
     Draws an alarm region on the input image.
 
-    Parameters:
+    Args:
     - image: The input image to draw the alarm region on.
 
     Returns:
@@ -54,3 +54,17 @@ def draw_alarm_region(image):
     mask_img = cv2.addWeighted(image, alpha, zero_mask, beta, gamma)
 
     return mask_img
+
+
+def save_image(image, path):
+    """
+    Save an image to the specified path.
+
+    Args:
+        image: The input image as a numpy array in BGR format.
+        path: The file path where the image will be saved.
+    """
+    img_PIL = Image.fromarray(image[..., ::-1])
+    img_PIL.save(path)
+
+    
