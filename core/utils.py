@@ -3,11 +3,36 @@ import numpy as np
 from PIL import Image
 
 
+def detect_person_in_alart_zone(bbox):
+    alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
+
+    bbox_inside = np.empty((0, 4),dtype=np.float32)
+    bbox_outside = np.empty((0, 4),dtype=np.float32)
+
+    # 判斷人物是否在警戒區
+    for coord in bbox:
+        # 計算人物的座標底部中點
+        bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
+
+        # 檢查中點是否在指定框內
+        detect_result = cv2.pointPolygonTest(alarm_region, bottom_center, False)
+
+        if detect_result >= 0:
+            # 人物在警戒區內
+            bbox_inside = np.append(bbox_inside, [coord], axis=0)
+        else:
+            # 人物在警戒區外
+            bbox_outside = np.append(bbox_outside, [coord], axis=0)
+            
+    return bbox_inside, bbox_outside
+
+
 class YoloImageProcessing:
     def __init__(self):
-        pass
+        self.fontface = cv2.FONT_HERSHEY_SIMPLEX
+        self.alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
 
-    def draw_inference_result(self, image, conf, bbox):
+    def draw_inference_result(self, image, conf, bbox, color = 'blue'):
         """
         Draws inference results on the input image.
         
@@ -19,17 +44,25 @@ class YoloImageProcessing:
         Returns:
         - im_rgb: the image with the inference results drawn in BGR format (openCV)
         """
-        fontface = cv2.FONT_HERSHEY_SIMPLEX
+        color_map = {
+        'black': (0, 0, 0),
+        'white': (255, 255, 255),
+        'red': (0, 0, 255),
+        'green': (0, 255, 0),
+        'blue': (255, 0, 0),
+         }
+        selected_color = color_map.get(color)
+
         for i, box in enumerate(bbox):
             x1, y1, x2, y2 = [int(coord) for coord in box]
-            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.rectangle(image, (x1, y1), (x2, y2), selected_color, 2)
 
             label = f'person: {conf[i]:.2f}'
-            t_size = cv2.getTextSize(label, fontface, 0.4, 2)[0]
+            t_size = cv2.getTextSize(label, self.fontface, 0.5, 2)[0]
             c2 = x1 + t_size[0], y1 - t_size[1] - 12
-            cv2.rectangle(image, (x1, y1), c2, (0, 255, 0), -1)
+            cv2.rectangle(image, (x1, y1), c2, selected_color, -1)
 
-            cv2.putText(image, label, (x1, y1 - 8), fontface, 0.4, (0, 0, 0), 1, cv2.LINE_AA)
+            cv2.putText(image, label, (x1, y1 - 8), self.fontface, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
         return image
 
@@ -44,12 +77,9 @@ class YoloImageProcessing:
         Returns:
         - The input image with the alarm region drawn on it.
         """
-        # 5邊形座標點
-        points = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
-
         # 畫出 mask
         zero = np.zeros((image.shape), dtype=np.uint8)
-        zero_mask = cv2.fillPoly(zero, [points], color=(0, 0, 200), lineType=cv2.LINE_AA, shift=0)
+        zero_mask = cv2.fillPoly(zero, [self.alarm_region], color=(0, 0, 200), lineType=cv2.LINE_AA, shift=0)
 
         # 把 mask 疊到圖片上
         # alpha, beta 控制透明度；gamma 控制曝光度
