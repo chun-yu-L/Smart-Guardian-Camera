@@ -4,7 +4,7 @@ from PIL import Image
 
 
 def detect_person_in_alart_zone(bbox):
-    alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
+    alarm_region = np.array([[1460, 0], [1820, 0], [850, 1080], [0, 1080], [0, 900]], np.int32)
 
     bbox_inside = np.empty((0, 4),dtype=np.float32)
     bbox_outside = np.empty((0, 4),dtype=np.float32)
@@ -102,4 +102,27 @@ class YoloImageProcessing:
         img_PIL = Image.fromarray(image[..., ::-1])
         img_PIL.save(path)
 
+class PerspectiveTransform:
+    def __init__(self, origin_points, transformed_width, transformed_height):
+        self.origin_points = origin_points
+        self.transformed_width = transformed_width
+        self.transformed_height = transformed_height
+
+    def get_matrix(self):
+
+        src_points = self.origin_points
+        # Define the destination points for perspective transformation
+        dst_points = np.float32([[0, 0], [self.transformed_width, 0], [self.transformed_width, self.transformed_height], [0, self.transformed_height]])
+
+        # Calculate the perspective transformation matrix
+        matrix = cv2.getPerspectiveTransform(src_points, dst_points)
+
+        return matrix
     
+    def plot(self, image):
+        matrix = self.get_matrix()
+
+        # Apply the perspective transformation
+        transformed_image = cv2.warpPerspective(image, matrix, (self.transformed_width, self.transformed_height))
+
+        return transformed_image
