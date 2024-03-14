@@ -133,3 +133,12 @@ class PerspectiveTransform:
         transformed_image = cv2.warpPerspective(image, self.matrix, (self.transformed_width, self.transformed_height))
 
         return transformed_image
+
+    def transform_points(self, x, y):
+        
+        point = np.array([[x, y]], dtype=np.float32)
+
+        # Apply the perspective transformation
+        transformed_x, transformed_y = cv2.perspectiveTransform(point.reshape(-1, 1, 2), self.matrix)[0][0]
+
+        return transformed_x, transformed_y
