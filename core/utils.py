@@ -107,22 +107,29 @@ class PerspectiveTransform:
         self.origin_points = origin_points
         self.transformed_width = transformed_width
         self.transformed_height = transformed_height
+        self._matrix = None
 
-    def get_matrix(self):
+    @property
+    def matrix(self):
+        if self._matrix is None:
+            src_points = self.origin_points
 
-        src_points = self.origin_points
-        # Define the destination points for perspective transformation
-        dst_points = np.float32([[0, 0], [self.transformed_width, 0], [self.transformed_width, self.transformed_height], [0, self.transformed_height]])
+            # Define the destination points for perspective transformation
+            dst_points = np.float32([
+                [0, 0],
+                [self.transformed_width, 0],
+                [self.transformed_width,self.transformed_height],
+                [0, self.transformed_height]
+            ])
 
-        # Calculate the perspective transformation matrix
-        matrix = cv2.getPerspectiveTransform(src_points, dst_points)
+            # Calculate the perspective transformation matrix
+            self._matrix = cv2.getPerspectiveTransform(src_points, dst_points)
 
-        return matrix
+        return self._matrix
     
     def plot(self, image):
-        matrix = self.get_matrix()
 
         # Apply the perspective transformation
-        transformed_image = cv2.warpPerspective(image, matrix, (self.transformed_width, self.transformed_height))
+        transformed_image = cv2.warpPerspective(image, self.matrix, (self.transformed_width, self.transformed_height))
 
         return transformed_image
