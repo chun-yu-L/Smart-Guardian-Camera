@@ -4,6 +4,18 @@ from PIL import Image
 
 
 def detect_person_in_alart_zone(bbox):
+    """
+    Detects if a person is within the alarm zone.
+
+    Args:
+        bbox (numpy.array): An array of bounding boxes representing coordinates of detected objects.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray]
+            bbox_inside: Bounding boxes of the persons detected inside the alarm zone.
+            bbox_outside: Bounding boxes of the persons detected outside the alarm zone.
+    """
+
     alarm_region = np.array([[1460, 0], [1820, 0], [850, 1080], [0, 1080], [0, 900]], np.int32)
 
     bbox_inside = np.empty((0, 4),dtype=np.float32)
@@ -37,12 +49,12 @@ class YoloImageProcessing:
         Draws inference results on the input image.
         
         Args:
-        - image: the input image in cv2 format
-        - conf: confidence values for the inference results
-        - bbox: bounding boxes for the inference results
+            image (cv2 format): the input image in cv2 format
+            conf (numpy.array): confidence values for the inference results
+            bbox (numpy.array): bounding boxes for the inference results
         
         Returns:
-        - im_rgb: the image with the inference results drawn in BGR format (openCV)
+            im_rgb (cv2 format): the image with the inference results drawn in BGR format (openCV)
         """
         color_map = {
         'black': (0, 0, 0),
@@ -69,13 +81,13 @@ class YoloImageProcessing:
 
     def draw_alarm_region(self, image):
         """
-        Draws an alarm region on the input image.
+        Draws an alarm region on the input image
 
         Args:
-        - image: The input image to draw the alarm region on.
+            image (cv2 format): The input image in cv2 format to draw the alarm region on
 
         Returns:
-        - The input image with the alarm region drawn on it.
+            image (cv2 format): The input image with the alarm region drawn on it in BGR format (openCV)
         """
         # 畫出 mask
         zero = np.zeros((image.shape), dtype=np.uint8)
@@ -96,8 +108,8 @@ class YoloImageProcessing:
         Save an image to the specified path.
 
         Args:
-            image: The input image as a numpy array in BGR format.
-            path: The file path where the image will be saved.
+            image (cv2 format): The input image as a numpy array in BGR format.
+            path (str): The file path where the image will be saved.
         """
         img_PIL = Image.fromarray(image[..., ::-1])
         img_PIL.save(path)
@@ -128,6 +140,16 @@ class PerspectiveTransform:
         return self._matrix
     
     def plot(self, image):
+        """
+        Plot the given image using a perspective transformation.
+
+        Args:
+            self (object): The object instance
+            image (cv2 format): The input image to be transformed
+
+        Returns:
+            image (cv2 format): The transformed image after applying the perspective transformation
+        """
 
         # Apply the perspective transformation
         transformed_image = cv2.warpPerspective(image, self.matrix, (self.transformed_width, self.transformed_height))
@@ -135,6 +157,17 @@ class PerspectiveTransform:
         return transformed_image
 
     def transform_points(self, x, y):
+        """
+        A function that transforms a given point (x, y) using a perspective transformation matrix.
+
+        Args:
+            x (float): The x-coordinate of the point.
+            y (float): The y-coordinate of the point.
+
+        Returns:
+            transformed_x (float): The transformed x-coordinate.
+            transformed_y (float): The transformed y-coordinate.
+        """
         
         point = np.array([[x, y]], dtype=np.float32)
 
