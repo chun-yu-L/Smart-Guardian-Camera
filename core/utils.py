@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image
 
 
-def detect_person_in_alart_zone(bbox):
+def detect_person_in_alert_zone(bbox):
     """
     Detects if a person is within the alarm zone.
 
@@ -16,7 +16,7 @@ def detect_person_in_alart_zone(bbox):
             bbox_outside: Bounding boxes of the persons detected outside the alarm zone.
     """
 
-    alarm_region = np.array([[1460, 0], [1820, 0], [850, 1080], [0, 1080], [0, 900]], np.int32)
+    alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
 
     bbox_inside = np.empty((0, 4),dtype=np.float32)
     bbox_outside = np.empty((0, 4),dtype=np.float32)
@@ -38,6 +38,51 @@ def detect_person_in_alart_zone(bbox):
             
     return bbox_inside, bbox_outside
 
+def calculate_distance_to_alert_zone(bbox, perspective_transform):
+    """
+    Calculate the distance of each bounding box to the alert zone based on the provided perspective transform.
+    
+    Args:
+        bbox (numpy.ndarray): An array of bounding boxes representing coordinates of detected objects.
+        perspective_transform (PerspectiveTransform): An instance of the PerspectiveTransform class.
+    
+    Returns:
+        dict: A dictionary with bounding boxes sorted into 'inside', 'safe', and 'near' zones, each with its distance to the alert zone.
+    """
+
+    alert_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
+    alert_region_transform = perspective_transform.transform_points(alert_region)
+
+    bbox_distance_dict = {'inside': ([], []), 'safe': ([], []), 'near': ([], [])}
+    
+    # 判斷人物是否在警戒區
+    for coord in bbox:
+        # 計算人物的座標底部中點
+        bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
+        
+        # 將底部中點從圖像坐標系轉換到世界坐標系
+        transform_bottom_center = perspective_transform.transform_points(bottom_center)
+        
+        # 計算人物到警戒區邊界的距離
+        distance = cv2.pointPolygonTest(alert_region_transform, transform_bottom_center, True)
+
+        if distance > 3:
+            # 人物遠離警戒區
+            bbox_distance_dict['safe'][0].append(coord)
+            bbox_distance_dict['safe'][1].append(distance)
+
+        elif 0 < distance <= 3:
+            # 人物靠近警戒區
+            bbox_distance_dict['near'][0].append(coord)
+            bbox_distance_dict['near'][1].append(distance)
+
+        else:
+            # 人物在警戒區內
+            bbox_distance_dict['inside'][0].append(coord)
+            bbox_distance_dict['inside'][1].append(distance)
+
+    return bbox_distance_dict
+    
 
 class YoloImageProcessing:
     def __init__(self):
@@ -54,7 +99,7 @@ class YoloImageProcessing:
             bbox (numpy.array): bounding boxes for the inference results
         
         Returns:
-            im_rgb (cv2 format): the image with the inference results drawn in BGR format (openCV)
+            image (cv2 format): the image with the inference results drawn in BGR format (openCV)
         """
         color_map = {
         'black': (0, 0, 0),
@@ -87,7 +132,7 @@ class YoloImageProcessing:
             image (cv2 format): The input image in cv2 format to draw the alarm region on
 
         Returns:
-            image (cv2 format): The input image with the alarm region drawn on it in BGR format (openCV)
+            mask_img (cv2 format): The input image with the alarm region drawn on it in BGR format (openCV)
         """
         # 畫出 mask
         zero = np.zeros((image.shape), dtype=np.uint8)
@@ -115,8 +160,8 @@ class YoloImageProcessing:
         img_PIL.save(path)
 
 class PerspectiveTransform:
-    def __init__(self, origin_points, transformed_width, transformed_height):
-        self.origin_points = origin_points
+    def __init__(self, source_points, transformed_width, transformed_height):
+        self.source_points = source_points
         self.transformed_width = transformed_width
         self.transformed_height = transformed_height
         self._matrix = None
@@ -124,7 +169,7 @@ class PerspectiveTransform:
     @property
     def matrix(self):
         if self._matrix is None:
-            src_points = self.origin_points
+            src_points = self.source_points
 
             # Define the destination points for perspective transformation
             dst_points = np.float32([
@@ -138,6 +183,22 @@ class PerspectiveTransform:
             self._matrix = cv2.getPerspectiveTransform(src_points, dst_points)
 
         return self._matrix
+
+    def transform_points(self, points):
+        """
+        A function that transforms given point(s) using a perspective transformation matrix.
+
+        Args:
+            points (np.ndarray): A Nx2 numpy array of (x, y) coordinates.
+
+        Returns:
+            transformed_points (np.ndarray): A Nx2 numpy array of transformed (x, y) coordinates.
+        """
+
+        # Apply the perspective transformation
+        transformed_points = cv2.perspectiveTransform(points.reshape(-1, 1, 2), self.matrix).squeeze()
+
+        return transformed_points
     
     def plot(self, image):
         """
@@ -155,23 +216,3 @@ class PerspectiveTransform:
         transformed_image = cv2.warpPerspective(image, self.matrix, (self.transformed_width, self.transformed_height))
 
         return transformed_image
-
-    def transform_points(self, x, y):
-        """
-        A function that transforms a given point (x, y) using a perspective transformation matrix.
-
-        Args:
-            x (float): The x-coordinate of the point.
-            y (float): The y-coordinate of the point.
-
-        Returns:
-            transformed_x (float): The transformed x-coordinate.
-            transformed_y (float): The transformed y-coordinate.
-        """
-        
-        point = np.array([[x, y]], dtype=np.float32)
-
-        # Apply the perspective transformation
-        transformed_x, transformed_y = cv2.perspectiveTransform(point.reshape(-1, 1, 2), self.matrix)[0][0]
-
-        return transformed_x, transformed_y
