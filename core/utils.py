@@ -3,103 +3,108 @@ import numpy as np
 from PIL import Image
 
 
-def detect_person_in_alert_zone(bbox, conf):
-    """
-    Detects if a person is within the alert zone and categorizes their bounding boxes based on the result.
+class AlertZone:
+    def __init__(self):
+        self.alert_zone = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.float32)
 
-    Args:
-        bbox (numpy.ndarray): An array of bounding boxes representing coordinates of detected objects.
-        conf (numpy.ndarray): An array of confidence values for the inference results
-
-    Returns:
-        dict: A dictionary containing the categorized bounding boxes based on their position relative to the alert zone.
-    """
-
-    alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
-
-    bbox_dict = {
-        'bbox_inside': ([],[]),
-        'bbox_outside': ([],[])
-    }
-
-    # 判斷人物是否在警戒區
-    for coord, conf in zip(bbox, conf):
-        # 計算人物的座標底部中點
-        bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
-
-        # 檢查中點是否在指定框內
-        detect_result = cv2.pointPolygonTest(alarm_region, bottom_center, False)
-
-        if detect_result >= 0:
-            # 人物在警戒區內
-            bbox_dict['bbox_inside'][0].append(coord)
-            bbox_dict['bbox_inside'][1].append(conf)
-        else:
-            # 人物在警戒區外
-            bbox_dict['bbox_outside'][0].append(coord)
-            bbox_dict['bbox_outside'][1].append(conf)
-            
-    return bbox_dict
-
-def calculate_distance_to_alert_zone(bbox, conf, perspective_transform):
-    """
-    Calculate the distance of each bounding box to the alert zone based on the provided perspective transform.
+class AlertDetector:
+    def __init__(self):
+        self.alert_zone = AlertZone().alert_zone
     
-    Args:
-        bbox (numpy.ndarray): An array of bounding boxes representing coordinates of detected objects.
-        conf (numpy.ndarray): An array of confidence values for the inference results
-        perspective_transform (PerspectiveTransform): An instance of the PerspectiveTransform class.
-    
-    Returns:
-        dict: A dictionary with bounding boxes sorted into 'inside', 'safe', and 'near' zones, each with its distance to the alert zone.
-    """
+    def is_inside_alert_zone(self, bbox, conf):
+        """
+        Detects if a person is within the alert zone and categorizes their bounding boxes based on the result.
 
-    alert_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.float32)
-    alert_region_transform = perspective_transform.transform_points(alert_region)
+        Args:
+            bbox (numpy.ndarray): An array of bounding boxes representing coordinates of detected objects.
+            conf (numpy.ndarray): An array of confidence values for the inference results
 
-    bbox_distance_dict = {
-        'bbox_inside': ([], [], []),
-        'bbox_safe': ([], [], []),
-        'bbox_near': ([], [], [])
+        Returns:
+            dict: A dictionary containing the categorized bounding boxes based on their position relative to the alert zone.
+        """
+
+        bbox_dict = {
+            'bbox_inside': ([],[]),
+            'bbox_outside': ([],[])
         }
-    
-    # 判斷人物是否在警戒區
-    for i, coord in enumerate(bbox):
-        # 計算人物的座標底部中點
-        bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
+
+        # 判斷人物是否在警戒區
+        for coord, conf in zip(bbox, conf):
+            # 計算人物的座標底部中點
+            bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
+
+            # 檢查中點是否在指定框內
+            detect_result = cv2.pointPolygonTest(self.alert_zone, bottom_center, False)
+
+            if detect_result >= 0:
+                # 人物在警戒區內
+                bbox_dict['bbox_inside'][0].append(coord)
+                bbox_dict['bbox_inside'][1].append(conf)
+            else:
+                # 人物在警戒區外
+                bbox_dict['bbox_outside'][0].append(coord)
+                bbox_dict['bbox_outside'][1].append(conf)
+                
+        return bbox_dict
+
+    def distance_to_alert_zone(self, bbox, conf, perspective_transform):
+        """
+        Calculate the distance of each bounding box to the alert zone based on the provided perspective transform.
         
-        # 將底部中點從圖像坐標系轉換到世界坐標系
-        transform_bottom_center = perspective_transform.transform_points(bottom_center)
+        Args:
+            bbox (numpy.ndarray): An array of bounding boxes representing coordinates of detected objects.
+            conf (numpy.ndarray): An array of confidence values for the inference results
+            perspective_transform (PerspectiveTransform): An instance of the PerspectiveTransform class.
         
-        # 計算人物到警戒區邊界的距離
-        distance = -cv2.pointPolygonTest(alert_region_transform, transform_bottom_center, True)
+        Returns:
+            dict: A dictionary with bounding boxes sorted into 'inside', 'safe', and 'near' zones, each with its distance to the alert zone.
+        """
 
-        if distance > 5:
-            # 人物遠離警戒區
-            bbox_distance_dict['bbox_safe'][0].append(coord)
-            bbox_distance_dict['bbox_safe'][1].append(distance)
-            bbox_distance_dict['bbox_safe'][2].append(conf[i])
+        alert_region_transform = perspective_transform.transform_points(self.alert_zone)
 
-        elif 0 < distance <= 5:
-            # 人物靠近警戒區
-            bbox_distance_dict['bbox_near'][0].append(coord)
-            bbox_distance_dict['bbox_near'][1].append(distance)
-            bbox_distance_dict['bbox_near'][2].append(conf[i])
+        bbox_distance_dict = {
+            'bbox_inside': ([], [], []),
+            'bbox_safe': ([], [], []),
+            'bbox_near': ([], [], [])
+            }
+        
+        # 判斷人物是否在警戒區
+        for i, coord in enumerate(bbox):
+            # 計算人物的座標底部中點
+            bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
+            
+            # 將底部中點從圖像坐標系轉換到世界坐標系
+            transform_bottom_center = perspective_transform.transform_points(bottom_center)
+            
+            # 計算人物到警戒區邊界的距離
+            distance = -cv2.pointPolygonTest(alert_region_transform, transform_bottom_center, True)
 
-        else:
-            # 人物在警戒區內
-            bbox_distance_dict['bbox_inside'][0].append(coord)
-            bbox_distance_dict['bbox_inside'][1].append(distance)
-            bbox_distance_dict['bbox_inside'][2].append(conf[i])
+            if distance > 5:
+                # 人物遠離警戒區
+                bbox_distance_dict['bbox_safe'][0].append(coord)
+                bbox_distance_dict['bbox_safe'][1].append(distance)
+                bbox_distance_dict['bbox_safe'][2].append(conf[i])
 
-    return bbox_distance_dict
+            elif 0 < distance <= 5:
+                # 人物靠近警戒區
+                bbox_distance_dict['bbox_near'][0].append(coord)
+                bbox_distance_dict['bbox_near'][1].append(distance)
+                bbox_distance_dict['bbox_near'][2].append(conf[i])
+
+            else:
+                # 人物在警戒區內
+                bbox_distance_dict['bbox_inside'][0].append(coord)
+                bbox_distance_dict['bbox_inside'][1].append(distance)
+                bbox_distance_dict['bbox_inside'][2].append(conf[i])
+
+        return bbox_distance_dict
     
 
 class YoloImageProcessing:
     def __init__(self):
         self.fontface = cv2.FONT_HERSHEY_SIMPLEX
-        self.fontscale = 0.7
-        self.alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
+        self.fontscale = 0.6
+        self.alert_zone = AlertZone().alert_zone
 
     def draw_inference_result(self, image, bbox_dict):
         """
@@ -167,7 +172,7 @@ class YoloImageProcessing:
         return image
     
 
-    def draw_alarm_region(self, image):
+    def draw_alert_zone(self, image):
         """
         Draws an alarm region on the input image
 
@@ -178,8 +183,8 @@ class YoloImageProcessing:
             mask_img (cv2 format): The input image with the alarm region drawn on it in BGR format (openCV)
         """
         # 畫出 mask
-        zero = np.zeros((image.shape), dtype=np.uint8)
-        zero_mask = cv2.fillPoly(zero, [self.alarm_region], color=(0, 0, 200), lineType=cv2.LINE_AA, shift=0)
+        zero = np.zeros_like(image, dtype=np.uint8)
+        zero_mask = cv2.fillPoly(zero, [self.alert_zone.astype(np.int32)], color=(0, 0, 200), lineType=cv2.LINE_AA, shift=0)
 
         # 把 mask 疊到圖片上
         # alpha, beta 控制透明度；gamma 控制曝光度
