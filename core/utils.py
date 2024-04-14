@@ -106,13 +106,40 @@ class YoloImageProcessing:
         self.fontscale = 0.6
         self.alert_zone = AlertZone().alert_zone
 
-    def draw_inference_result(self, image, bbox_dict):
+    def draw_inference_result(self, image, conf, bbox):
+        """
+        Draws inference results on the input image.
+        
+        Args:
+            image (cv2 format): the input image in cv2 format
+            conf (numpy.array): confidence values for the inference results
+            bbox (numpy.array): bounding boxes for the inference results
+        
+        Returns:
+            image (cv2 format): the image with the inference results drawn in BGR format (openCV)
+        """
+        selected_color = (255, 0, 0)
+
+        for i, box in enumerate(bbox):
+            x1, y1, x2, y2 = [int(coord) for coord in box]
+            cv2.rectangle(image, (x1, y1), (x2, y2), selected_color, 2)
+
+            label = f'Person: {conf[i]:.2f}'
+            t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
+            c2 = x1 + t_size[0], y1 - t_size[1] - 12
+            cv2.rectangle(image, (x1, y1), c2, selected_color, -1)
+
+            cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+
+        return image
+
+    def draw_inside_or_outside(self, image, bbox_dict):
         """
         Draws inference results on the input image based on the provided bounding box dictionary.
 
         Args:
             image (cv2 format): The image on which to draw the inference results.
-            bbox_dict (dict): A dictionary containing information about bounding boxes and colors.
+            bbox_dict (dict): A dictionary containing information about bounding boxes and inside/outside.
 
         Returns:
             image (cv2 format): The image with the inference results drawn.
@@ -126,12 +153,12 @@ class YoloImageProcessing:
                 x1, y1, x2, y2 = [int(coord) for coord in bbox]
                 cv2.rectangle(image, (x1, y1), (x2, y2), selected_color, 2)
 
-                label = f'person: {conf:.2f}'
+                label = f'Person: {conf:.2f}'
                 t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
                 c2 = x1 + t_size[0], y1 - t_size[1] - 12
                 cv2.rectangle(image, (x1, y1), c2, selected_color, -1)
 
-                cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 2, cv2.LINE_AA)
+                cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
         
         return image
     
@@ -146,7 +173,7 @@ class YoloImageProcessing:
         Returns:
             image (cv2 format): The image with the alert distances drawn.
         """
-        colors = {'bbox_inside': (0, 0, 255), 'bbox_safe': (255, 0, 0), 'bbox_near': (0, 220, 255)}  # 定義不同區域的顏色
+        colors = {'bbox_inside': (0, 0, 255), 'bbox_safe': (255, 0, 0), 'bbox_near': (0, 200, 255)}  # 定義不同區域的顏色
 
         for zone, (bboxes, distances, confidences) in bbox_distance_dict.items():
             color = colors[zone]  # 獲取區域對應的顏色
@@ -155,11 +182,11 @@ class YoloImageProcessing:
                 cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)  # 繪製邊界框
 
                 # 寫上confidence
-                conf_label = f'person: {conf:.2f}'
+                conf_label = f'Person: {conf:.2f}'
                 t_size_conf = cv2.getTextSize(conf_label, self.fontface, self.fontscale, 2)[0]
                 c2 = x1 + t_size_conf[0], y1 - t_size_conf[1] - 12 # 計算文字標籤框的右上角座標
                 cv2.rectangle(image, (x1, y1), c2, color, -1)
-                cv2.putText(image, conf_label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 2, cv2.LINE_AA)
+                cv2.putText(image, conf_label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
 
                 # 寫上距離
                 if distance > 0:
@@ -167,7 +194,7 @@ class YoloImageProcessing:
                     t_size_dist = cv2.getTextSize(distance_label, self.fontface, self.fontscale, 2)[0]
                     c3 = x1 + t_size_dist[0], c2[1] - t_size_dist[1] - 12 # 計算文字標籤框的右上角座標
                     cv2.rectangle(image, (x1, c2[1]), c3, color, -1)
-                    cv2.putText(image, distance_label, (x1, c2[1] - 8), self.fontface, self.fontscale, (255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.putText(image, distance_label, (x1, c2[1] - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
 
         return image
     
