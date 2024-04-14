@@ -17,7 +17,7 @@ def human_bbox_prediction(image):
     bbox = results[0].boxes.xyxy.numpy()
     conf = results[0].boxes.conf.numpy()
 
-    return conf, bbox
+    return bbox, conf
     
 
 

@@ -3,26 +3,27 @@ import numpy as np
 from PIL import Image
 
 
-def detect_person_in_alert_zone(bbox):
+def detect_person_in_alert_zone(bbox, conf):
     """
-    Detects if a person is within the alarm zone.
+    Detects if a person is within the alert zone and categorizes their bounding boxes based on the result.
 
     Args:
-        bbox (numpy.array): An array of bounding boxes representing coordinates of detected objects.
+        bbox (numpy.ndarray): An array of bounding boxes representing coordinates of detected objects.
+        conf (numpy.ndarray): An array of confidence values for the inference results
 
     Returns:
-        Tuple[numpy.ndarray, numpy.ndarray]
-            bbox_inside: Bounding boxes of the persons detected inside the alarm zone.
-            bbox_outside: Bounding boxes of the persons detected outside the alarm zone.
+        dict: A dictionary containing the categorized bounding boxes based on their position relative to the alert zone.
     """
 
     alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
 
-    bbox_inside = np.empty((0, 4),dtype=np.float32)
-    bbox_outside = np.empty((0, 4),dtype=np.float32)
+    bbox_dict = {
+        'bbox_inside': ([],[]),
+        'bbox_outside': ([],[])
+    }
 
     # 判斷人物是否在警戒區
-    for coord in bbox:
+    for coord, conf in zip(bbox, conf):
         # 計算人物的座標底部中點
         bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
 
@@ -31,12 +32,14 @@ def detect_person_in_alert_zone(bbox):
 
         if detect_result >= 0:
             # 人物在警戒區內
-            bbox_inside = np.append(bbox_inside, [coord], axis=0)
+            bbox_dict['bbox_inside'][0].append(coord)
+            bbox_dict['bbox_inside'][1].append(conf)
         else:
             # 人物在警戒區外
-            bbox_outside = np.append(bbox_outside, [coord], axis=0)
+            bbox_dict['bbox_outside'][0].append(coord)
+            bbox_dict['bbox_outside'][1].append(conf)
             
-    return bbox_inside, bbox_outside
+    return bbox_dict
 
 def calculate_distance_to_alert_zone(bbox, conf, perspective_transform):
     """
@@ -55,9 +58,9 @@ def calculate_distance_to_alert_zone(bbox, conf, perspective_transform):
     alert_region_transform = perspective_transform.transform_points(alert_region)
 
     bbox_distance_dict = {
-        'inside': ([], [], []),
-        'safe': ([], [], []),
-        'near': ([], [], [])
+        'bbox_inside': ([], [], []),
+        'bbox_safe': ([], [], []),
+        'bbox_near': ([], [], [])
         }
     
     # 判斷人物是否在警戒區
@@ -73,21 +76,21 @@ def calculate_distance_to_alert_zone(bbox, conf, perspective_transform):
 
         if distance > 5:
             # 人物遠離警戒區
-            bbox_distance_dict['safe'][0].append(coord)
-            bbox_distance_dict['safe'][1].append(distance)
-            bbox_distance_dict['safe'][2].append(conf[i])
+            bbox_distance_dict['bbox_safe'][0].append(coord)
+            bbox_distance_dict['bbox_safe'][1].append(distance)
+            bbox_distance_dict['bbox_safe'][2].append(conf[i])
 
         elif 0 < distance <= 5:
             # 人物靠近警戒區
-            bbox_distance_dict['near'][0].append(coord)
-            bbox_distance_dict['near'][1].append(distance)
-            bbox_distance_dict['near'][2].append(conf[i])
+            bbox_distance_dict['bbox_near'][0].append(coord)
+            bbox_distance_dict['bbox_near'][1].append(distance)
+            bbox_distance_dict['bbox_near'][2].append(conf[i])
 
         else:
             # 人物在警戒區內
-            bbox_distance_dict['inside'][0].append(coord)
-            bbox_distance_dict['inside'][1].append(distance)
-            bbox_distance_dict['inside'][2].append(conf[i])
+            bbox_distance_dict['bbox_inside'][0].append(coord)
+            bbox_distance_dict['bbox_inside'][1].append(distance)
+            bbox_distance_dict['bbox_inside'][2].append(conf[i])
 
     return bbox_distance_dict
     
@@ -98,38 +101,33 @@ class YoloImageProcessing:
         self.fontscale = 0.7
         self.alarm_region = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.int32)
 
-    def draw_inference_result(self, image, conf, bbox, color = 'blue'):
+    def draw_inference_result(self, image, bbox_dict):
         """
-        Draws inference results on the input image.
-        
+        Draws inference results on the input image based on the provided bounding box dictionary.
+
         Args:
-            image (cv2 format): the input image in cv2 format
-            conf (numpy.array): confidence values for the inference results
-            bbox (numpy.array): bounding boxes for the inference results
-        
+            image (cv2 format): The image on which to draw the inference results.
+            bbox_dict (dict): A dictionary containing information about bounding boxes and colors.
+
         Returns:
-            image (cv2 format): the image with the inference results drawn in BGR format (openCV)
+            image (cv2 format): The image with the inference results drawn.
         """
-        color_map = {
-        'black': (0, 0, 0),
-        'white': (255, 255, 255),
-        'red': (0, 0, 255),
-        'green': (0, 255, 0),
-        'blue': (255, 0, 0),
-         }
-        selected_color = color_map.get(color)
 
-        for i, box in enumerate(bbox):
-            x1, y1, x2, y2 = [int(coord) for coord in box]
-            cv2.rectangle(image, (x1, y1), (x2, y2), selected_color, 2)
+        colors = {'bbox_inside': (0, 0, 255), 'bbox_outside': (255, 0, 0)} 
 
-            label = f'person: {conf[i]:.2f}'
-            t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
-            c2 = x1 + t_size[0], y1 - t_size[1] - 12
-            cv2.rectangle(image, (x1, y1), c2, selected_color, -1)
+        for zone, (bbox, conf) in bbox_dict.items():
+            selected_color = colors[zone]
+            for bbox, conf in zip(bbox, conf):
+                x1, y1, x2, y2 = [int(coord) for coord in bbox]
+                cv2.rectangle(image, (x1, y1), (x2, y2), selected_color, 2)
 
-            cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+                label = f'person: {conf:.2f}'
+                t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
+                c2 = x1 + t_size[0], y1 - t_size[1] - 12
+                cv2.rectangle(image, (x1, y1), c2, selected_color, -1)
 
+                cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 2, cv2.LINE_AA)
+        
         return image
     
     def draw_alert_distances(self, image, bbox_distance_dict):
@@ -143,7 +141,7 @@ class YoloImageProcessing:
         Returns:
             image (cv2 format): The image with the alert distances drawn.
         """
-        colors = {'inside': (0, 0, 255), 'safe': (255, 0, 0), 'near': (0, 220, 255)}  # 定義不同區域的顏色
+        colors = {'bbox_inside': (0, 0, 255), 'bbox_safe': (255, 0, 0), 'bbox_near': (0, 220, 255)}  # 定義不同區域的顏色
 
         for zone, (bboxes, distances, confidences) in bbox_distance_dict.items():
             color = colors[zone]  # 獲取區域對應的顏色
