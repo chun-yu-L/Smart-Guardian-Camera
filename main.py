@@ -63,9 +63,11 @@ async def distance_to_alert_zone(file: UploadFile = File(...)):
     # 人物偵測
     bbox, conf = human_bbox_prediction(img)
 
-    # 判斷人物是否在警戒區
+    # 視角轉換
     src_point = np.array([[0, 900], [1460, 0], [1820, 0], [800, 1075]], np.float32)
     PT = PerspectiveTransform(src_point, 50, 20)
+
+    # 判斷與警戒區的距離
     detector = AlertDetector()
     bbox_dict = detector.distance_to_alert_zone(bbox, conf, PT)
 

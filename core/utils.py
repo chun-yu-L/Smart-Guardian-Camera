@@ -5,7 +5,7 @@ from PIL import Image
 
 class AlertZone:
     def __init__(self):
-        self.alert_zone = np.array([[1460, 0], [1820, 0], [800, 1075], [0, 1075], [0, 900]], np.float32)
+        self.alert_zone = np.array([[1460, 0], [1820, 0], [800, 1080], [0, 1080], [0, 900]], np.float32)
 
 class AlertDetector:
     def __init__(self):
