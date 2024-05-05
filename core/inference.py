@@ -15,11 +15,10 @@ def human_bbox_prediction(image):
     """
     # 預測 bbox 與 conf
     model = YOLO('yolov8n.pt')
-    results = model(image, classes=[0])
+    results = model(image, conf=0.4, classes=[0])
 
     bbox = results[0].boxes.xyxy.numpy()
     conf = results[0].boxes.conf.numpy()
-
 
     # 超出圖片的 bbox 縮回來
     # 獲取圖片尺寸
