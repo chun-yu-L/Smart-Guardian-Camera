@@ -11,8 +11,11 @@ AI 街道安全助手是針對行人交通安全的解決方案。在道路中�
 
 
 ## 系統架構
+### 整體架構
 ![API model](assets/C4_model.png)
 
+### 距離偵測 API 流程
+![distance swimlane](assets/distance_swimlane.png)
 
 ## 使用說明
 
