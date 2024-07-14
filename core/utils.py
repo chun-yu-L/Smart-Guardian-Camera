@@ -106,6 +106,19 @@ class YoloImageProcessing:
         self.fontscale = 0.6
         self.alert_zone = AlertZone().alert_zone
 
+    def _draw_bbox_with_conf(self, image, bbox, conf, color):
+        x1, y1, x2, y2 = [int(coord) for coord in bbox]
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+
+        label = f'Person: {conf:.2f}'
+        t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
+        label_y = y1 - t_size[1] - 12
+        c2 = x1 + t_size[0], label_y
+        cv2.rectangle(image, (x1, y1), c2, color, -1)
+        cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+
+        return (x1, label_y, t_size[0], t_size[1]) # 回傳 conf 標籤的 xywh
+
     def draw_inference_result(self, image, conf, bbox):
         """
         Draws inference results on the input image.
@@ -121,15 +134,7 @@ class YoloImageProcessing:
         selected_color = (255, 0, 0)
 
         for i, box in enumerate(bbox):
-            x1, y1, x2, y2 = [int(coord) for coord in box]
-            cv2.rectangle(image, (x1, y1), (x2, y2), selected_color, 2)
-
-            label = f'Person: {conf[i]:.2f}'
-            t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
-            c2 = x1 + t_size[0], y1 - t_size[1] - 12
-            cv2.rectangle(image, (x1, y1), c2, selected_color, -1)
-
-            cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+            self._draw_bbox_with_conf(image, box, conf[i], selected_color)
 
         return image
 
@@ -150,15 +155,7 @@ class YoloImageProcessing:
         for zone, (bbox, conf) in bbox_dict.items():
             selected_color = colors[zone]
             for bbox, conf in zip(bbox, conf):
-                x1, y1, x2, y2 = [int(coord) for coord in bbox]
-                cv2.rectangle(image, (x1, y1), (x2, y2), selected_color, 2)
-
-                label = f'Person: {conf:.2f}'
-                t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
-                c2 = x1 + t_size[0], y1 - t_size[1] - 12
-                cv2.rectangle(image, (x1, y1), c2, selected_color, -1)
-
-                cv2.putText(image, label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+                self._draw_bbox_with_conf(image, bbox, conf, selected_color)
         
         return image
     
@@ -178,27 +175,18 @@ class YoloImageProcessing:
         for zone, (bboxes, distances, confidences) in bbox_distance_dict.items():
             color = colors[zone]  # 獲取區域對應的顏色
             for box, distance, conf in zip(bboxes, distances, confidences):
-                x1, y1, x2, y2 = [int(coord) for coord in box]  # 獲取邊界框的座標
-                cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)  # 繪製邊界框
-
-                # 寫上confidence
-                conf_label = f'Person: {conf:.2f}'
-                t_size_conf = cv2.getTextSize(conf_label, self.fontface, self.fontscale, 2)[0]
-                c2 = x1 + t_size_conf[0], y1 - t_size_conf[1] - 12 # 計算文字標籤框的右上角座標
-                cv2.rectangle(image, (x1, y1), c2, color, -1)
-                cv2.putText(image, conf_label, (x1, y1 - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+                x, y, _, _ = self._draw_bbox_with_conf(image, box, conf, color)
 
                 # 寫上距離
                 if distance > 0:
                     distance_label = f'Distance: {distance:.2f}'
                     t_size_dist = cv2.getTextSize(distance_label, self.fontface, self.fontscale, 2)[0]
-                    c3 = x1 + t_size_dist[0], c2[1] - t_size_dist[1] - 12 # 計算文字標籤框的右上角座標
-                    cv2.rectangle(image, (x1, c2[1]), c3, color, -1)
-                    cv2.putText(image, distance_label, (x1, c2[1] - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+                    c2 = x + t_size_dist[0], y - t_size_dist[1] - 12 # 計算文字標籤框的右上角座標
+                    cv2.rectangle(image, (x, y), c2, color, -1)
+                    cv2.putText(image, distance_label, (x, y - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
 
         return image
     
-
     def draw_alert_zone(self, image):
         """
         Draws an alarm region on the input image
