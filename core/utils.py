@@ -73,7 +73,7 @@ class AlertDetector:
             # 計算人物的座標底部中點
             bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
             
-            # 將底部中點從圖像坐標系轉換到世界坐標系
+            # 將底部中點坐標進行視角轉換
             transform_bottom_center = perspective_transform.transform_points(bottom_center)
             
             # 計算人物到警戒區邊界的距離
@@ -99,6 +99,63 @@ class AlertDetector:
 
         return bbox_distance_dict
     
+    def distance_with_ids(self, bbox, conf, id, perspective_transform):
+        """
+        Calculate the distance of each bounding box to the alert zone based on the provided perspective transform,
+        including object IDs.
+
+        Args:
+        bbox (numpy.ndarray): An array of bounding boxes representing coordinates of detected objects.
+        conf (numpy.ndarray): An array of confidence values for the inference results.
+        id (numpy.ndarray): An array of object IDs for the detected objects.
+        perspective_transform (PerspectiveTransform): An instance of the PerspectiveTransform class.
+
+        Returns:
+        dict: A dictionary with bounding boxes sorted into 'inside', 'safe', and 'near' zones,
+            each with its distance to the alert zone and object ID.
+        """
+        
+        alert_region_transform = perspective_transform.transform_points(self.alert_zone)
+
+        bbox_distance_dict = {
+            'bbox_inside': ([], [], [], []),
+            'bbox_safe': ([], [], [], []),
+            'bbox_near': ([], [], [], [])
+            }
+        
+            # 判斷人物是否在警戒區
+        for i, coord in enumerate(bbox):
+            # 計算人物的座標底部中點
+            bottom_center = np.array([(coord[0] + coord[2]) / 2, coord[3]])
+            
+            # 將底部中點坐標進行視角轉換
+            transform_bottom_center = perspective_transform.transform_points(bottom_center)
+            
+            # 計算人物到警戒區邊界的距離
+            distance = -cv2.pointPolygonTest(alert_region_transform, transform_bottom_center, True)
+
+            if distance > 5:
+                # 人物遠離警戒區
+                bbox_distance_dict['bbox_safe'][0].append(coord)
+                bbox_distance_dict['bbox_safe'][1].append(distance)
+                bbox_distance_dict['bbox_safe'][2].append(conf[i])
+                bbox_distance_dict['bbox_safe'][3].append(id[i])
+
+            elif 0 < distance <= 5:
+                # 人物靠近警戒區
+                bbox_distance_dict['bbox_near'][0].append(coord)
+                bbox_distance_dict['bbox_near'][1].append(distance)
+                bbox_distance_dict['bbox_near'][2].append(conf[i])
+                bbox_distance_dict['bbox_near'][3].append(id[i])
+
+            else:
+                # 人物在警戒區內
+                bbox_distance_dict['bbox_inside'][0].append(coord)
+                bbox_distance_dict['bbox_inside'][1].append(distance)
+                bbox_distance_dict['bbox_inside'][2].append(conf[i])
+                bbox_distance_dict['bbox_inside'][3].append(id[i])
+
+        return bbox_distance_dict
 
 class YoloImageProcessing:
     def __init__(self):
@@ -184,6 +241,36 @@ class YoloImageProcessing:
                     c2 = x + t_size_dist[0], y - t_size_dist[1] - 12 # 計算文字標籤框的右上角座標
                     cv2.rectangle(image, (x, y), c2, color, -1)
                     cv2.putText(image, distance_label, (x, y - 8), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+
+        return image
+    
+    def draw_distance_with_id(self, image, bbox_distance_dict):
+        colors = {'bbox_inside': (0, 0, 255), 'bbox_safe': (255, 0, 0), 'bbox_near': (0, 200, 255)}  # 定義不同區域的顏色
+
+        for zone, (bboxes, distances, confidences, ids) in bbox_distance_dict.items():
+            color = colors[zone]  # 獲取區域對應的顏色
+            for box, distance, conf, id in zip(bboxes, distances, confidences, ids):
+                x1, y1, x2, y2 = [int(coord) for coord in box]
+                cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+
+                # 準備所有要顯示的標籤
+                labels = []
+                labels.append(f'ID: {id}')
+                if distance > 0:
+                    labels.append(f'Distance: {distance:.2f}')
+                labels.append(f'Conf: {conf:.2f}')
+
+                # 計算所有標籤的總高度
+                total_height = sum([cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0][1] + 12 for label in labels])
+
+                # 從上到下繪製標籤
+                current_y = y1 - total_height
+                for label in labels:
+                    t_size = cv2.getTextSize(label, self.fontface, self.fontscale, 2)[0]
+                    c2 = x1 + t_size[0], current_y + t_size[1] + 12
+                    cv2.rectangle(image, (x1, current_y), c2, color, -1)
+                    cv2.putText(image, label, (x1, current_y + t_size[1] + 4), self.fontface, self.fontscale, (255, 255, 255), 1, cv2.LINE_AA)
+                    current_y += t_size[1] + 12
 
         return image
     
