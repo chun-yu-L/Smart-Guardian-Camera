@@ -2,6 +2,8 @@ import numpy as np
 from ultralytics import YOLO
 
 
+model = YOLO("yolov8n.pt")
+
 def human_bbox_prediction(image):
     """
     Predicts bounding boxes for humans in the given image using YOLO model.
@@ -14,7 +16,6 @@ def human_bbox_prediction(image):
         conf: Numpy array of confidence values for the inference results.
     """
     # 預測 bbox
-    model = YOLO("yolov8n.pt")
     results = model(image, conf=0.4, classes=[0])
 
     bbox = results[0].boxes.xyxy.numpy()
@@ -48,7 +49,6 @@ def human_tracker_yolo(image):
     This function uses the YOLO model to predict bounding boxes and IDs for humans in the given image. It takes an RGB image as input and returns the predicted bounding boxes, confidence values, and IDs.
     """
     # 預測 bbox 與 ID
-    model = YOLO("yolov8n.pt")
     results = model.track(image, conf=0.4, classes=[0], persist=True)
 
     bbox = results[0].boxes.xyxy.numpy()
